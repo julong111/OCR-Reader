@@ -1,13 +1,10 @@
 name: Build and Release Executables
 
 on:
-    push:
-        branches:
-            - main
     workflow_dispatch:
         inputs:
             version:
-                description: "v0.0.1"
+                description: "ocr-reader version"
                 required: true
 
 jobs:
@@ -38,7 +35,7 @@ jobs:
 
       - name: Build application
         run: |
-          python -m pip install --upgrade pip PyQt5 PyInstaller
+          python -m pip install --upgrade pip PyQt5 PyInstaller opencv-python==4.9.0.80 numpy<2.0 pillow pytesseract sentencepiece torch==2.2.2 transformers
           python -m PyInstaller --onefile --windowed src/app.py
 
       - name: Archive artifacts
