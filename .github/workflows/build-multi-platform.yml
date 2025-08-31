@@ -33,7 +33,7 @@ jobs:
           version: "latest"
 
       - name: Install the project and dev dependencies
-        run: uv sync --dev
+        run: uv sync --extra dev
 
       - name: Build application
         run: |

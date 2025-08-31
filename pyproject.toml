@@ -14,13 +14,14 @@ dependencies = [
     "torch==2.2.2",
     "transformers",
 ]
+
+# 在这里定义可选依赖项，包括开发依赖
+[project.optional-dependencies]
+dev = ["pyinstaller"]
+
 [tool.uv]
 constraint-dependencies = ["pyqt5-qt5 <=5.15.2"]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
-
-# 或者
-[tool.uv.dev-dependencies]
-pyinstaller = "*" # 作为开发依赖
