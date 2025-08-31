@@ -126,7 +126,6 @@ class ControlPanel(QWidget):
         self.stage3_page.reset_params_btn.clicked.connect(self.signal_controlpanel_reset_all_parameters_requested)
         self.stage4_page.run_ocr_requested.connect(self.signal_controlpanel_run_ocr_requested)
         self.stage4_page.run_translation_requested.connect(self.signal_controlpanel_run_translation_requested)
-        self.stage4_page.load_model_requested.connect(self.signal_controlpanel_load_model_requested)
         self.stage4_page.save_single_requested.connect(self.signal_controlpanel_save_single_requested)
         self.stage4_page.save_batch_requested.connect(self.signal_controlpanel_save_batch_requested)
 

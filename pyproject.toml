@@ -6,13 +6,13 @@ readme = "README.md"
 requires-python = ">=3.9, <3.10"
 dependencies = [
     "opencv-python==4.9.0.80",
-    "numpy<2.0",
-    "pillow",
-    "pyqt5==5.15.2",
-    "pytesseract",
-    "sentencepiece",
-    "torch==2.2.2",
-    "transformers",
+    "numpy<2.0", #numpy1.x
+    "pillow==11.3.0",
+    "pyqt5==5.15.2", # 验证可用
+    "pytesseract==0.3.13",
+    "sentencepiece==0.2.1",
+    "torch==2.2.2", # last-mac intel cpu mast 2.2.2
+    "transformers==4.39.3", #配合touch的版本
 ]
 
 # 在这里定义可选依赖项，包括开发依赖

@@ -1,0 +1,3 @@
+mac
+
+pyinstaller --distpath release/dist --workpath release/build OCR-Reader.spec

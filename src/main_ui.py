@@ -65,7 +65,6 @@ class MainUI(QMainWindow):
         self.task_manager.signal_taskmanager_task_error.connect(self._handle_task_error)
         self.task_manager.signal_taskmanager_ocr_finished.connect(self._on_ocr_result)
         self.task_manager.signal_taskmanager_translation_finished.connect(self._on_translation_result)
-        self.task_manager.signal_taskmanager_model_loaded.connect(self._on_load_model_result)
         self.task_manager.signal_taskmanager_batch_progress.connect(self._on_batch_progress)
         self.task_manager.signal_taskmanager_batch_finished.connect(self._on_batch_finished)
 
@@ -144,8 +143,7 @@ class MainUI(QMainWindow):
         self.control_panel.signal_controlpanel_parameters_changed.connect(self.app_context.update_parameters)
         self.control_panel.signal_controlpanel_reset_all_parameters_requested.connect(self.reset_parameters)
         self.control_panel.signal_controlpanel_run_ocr_requested.connect(self.run_ocr)
-        self.control_panel.signal_controlpanel_run_translation_requested.connect(self.btn_translation)
-        self.control_panel.signal_controlpanel_load_model_requested.connect(self.load_translation_model)
+        self.control_panel.signal_controlpanel_run_translation_requested.connect(self.run_translation)
         self.control_panel.signal_controlpanel_save_single_requested.connect(self.save_single_image_results)
         self.control_panel.signal_controlpanel_save_batch_requested.connect(self.save_all_images_batch)
 
@@ -169,14 +167,12 @@ class MainUI(QMainWindow):
         self.task_start_handlers = {
             TaskName.OCR: lambda: (page4.run_ocr_btn.setEnabled(False), page4.run_ocr_btn.setText("正在OCR...")),
             TaskName.TRANSLATE: lambda: (page4.run_translation_btn.setEnabled(False), page4.run_translation_btn.setText("正在翻译...")),
-            TaskName.LOAD_MODEL: lambda: (page4.load_model_btn.setEnabled(False), page4.load_model_btn.setText("正在加载...")),
             TaskName.BATCH_SAVE: lambda: (page4.save_batch_btn.setEnabled(False), page4.save_batch_btn.setText("正在批量保存..."), self._show_batch_progress_dialog()),
         }
 
         self.task_finish_handlers = {
             TaskName.OCR: lambda: (page4.run_ocr_btn.setEnabled(True), page4.run_ocr_btn.setText("运行OCR")),
             TaskName.TRANSLATE: lambda: (page4.run_translation_btn.setEnabled(True), page4.run_translation_btn.setText("翻译OCR")),
-            TaskName.LOAD_MODEL: lambda: (page4.load_model_btn.setEnabled(True), page4.load_model_btn.setText("加载翻译模型")),
             TaskName.BATCH_SAVE: lambda: (
                 page4.save_batch_btn.setEnabled(True),
                 page4.save_batch_btn.setText("批量保存所有图片"),
@@ -492,7 +488,7 @@ class MainUI(QMainWindow):
         # OCR完成后的回调函数。
         self.control_panel.stage4_page.set_ocr_text(ocr_text)
 
-    def btn_translation(self):
+    def run_translation(self):
         ocr_text = self.control_panel.stage4_page.get_ocr_text().strip()
         if not ocr_text:
             QMessageBox.warning(self, "警告", "OCR结果框中没有文本可供翻译。")
@@ -505,23 +501,6 @@ class MainUI(QMainWindow):
     def _on_translation_result(self, translated_text):
         # 翻译完成后的回调函数。
         self.control_panel.stage4_page.set_translation_text(translated_text)
-
-    def load_translation_model(self):
-        # 让用户通过文件对话框选择模型路径
-        model_path = QFileDialog.getExistingDirectory(self, "选择 'opus-mt-en-zh' 模型文件夹")
-        if not model_path:
-            return
-
-        self.task_manager.start_load_model(model_path)
-
-    def _on_load_model_result(self, result_tuple):
-        # 加载模型完成后的回调函数。
-        success, message = result_tuple
-        if success:
-            self.control_panel.stage4_page.load_model_btn.setEnabled(False)
-            # QMessageBox.information(self, "成功", message)
-        else:
-            QMessageBox.critical(self, "错误", message)
 
     def save_single_image_results(self):
         # 调用ProjectManager来保存当前图像的所有处理结果。

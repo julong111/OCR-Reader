@@ -15,7 +15,6 @@ class OcrExportPage(QWidget):
     # Signals for actions requested by the user
     run_ocr_requested = pyqtSignal()
     run_translation_requested = pyqtSignal()
-    load_model_requested = pyqtSignal()
     save_single_requested = pyqtSignal()
     save_batch_requested = pyqtSignal()
 
@@ -51,10 +50,14 @@ class OcrExportPage(QWidget):
         # Translation section
         translation_layout = QHBoxLayout()
         self.translate_label = QLabel("翻译结果")
-        self.load_model_btn = QPushButton("加载翻译模型")
+        translation_model_label = QLabel("翻译模型:")
+        self.translation_model_combo = QComboBox()
+        self.translation_model_combo.addItem("Opus-MT (英-中)", "opus-mt-en-zh")
         self.run_translation_btn = QPushButton("翻译OCR")
         translation_layout.addWidget(self.translate_label)
-        translation_layout.addWidget(self.load_model_btn)
+        translation_layout.addStretch()
+        translation_layout.addWidget(translation_model_label)
+        translation_layout.addWidget(self.translation_model_combo)
         translation_layout.addWidget(self.run_translation_btn)
         layout.addLayout(translation_layout)
 
@@ -75,7 +78,6 @@ class OcrExportPage(QWidget):
     def _connect_signals(self):
         self.run_ocr_btn.clicked.connect(self.run_ocr_requested.emit)
         self.run_translation_btn.clicked.connect(self.run_translation_requested.emit)
-        self.load_model_btn.clicked.connect(self.load_model_requested.emit)
         self.save_single_btn.clicked.connect(self.save_single_requested.emit)
         self.save_batch_btn.clicked.connect(self.save_batch_requested.emit)
 
