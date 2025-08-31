@@ -33,11 +33,11 @@ jobs:
           version: "latest"
 
       - name: Install the project
-        run: uv sync
+        run: uv sync --with pyinstaller
 
       - name: Build application
         run: |
-          pyinstaller --onefile src/app.py
+          python -m PyInstaller --onefile src/app.py
 
       - name: Rename executable
         run: |
