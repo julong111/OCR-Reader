@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>参数说明</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; background-color: #f0f0f0; color: #000; }
+        h1, h2 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        h3 { color: #555; }
+        code { background-color: #e8e8e8; padding: 2px 4px; border-radius: 3px; }
+        p { margin-bottom: 10px; }
+        ul { padding-left: 20px; }
+    </style>
+</head>
+<body>
+
+<h1>参数说明</h1>
+
+<h2 id="stage1">第一阶段：几何校正</h2>
+<p>此阶段用于修正图像的几何形变，是后续处理的基础。</p>
+<h3>角度校正</h3>
+<ul>
+    <li><strong>作用</strong>: 修正因拍摄角度倾斜导致的文本行不水平的问题。</li>
+    <li><strong>操作</strong>: 点击“角度校正”按钮，然后在图片上沿着任意一个倾斜的文本行，依次点击行首和行尾的两个点。程序会自动计算倾斜角度并旋转整个图像。</li>
+    <li><strong>重置角度</strong>: 将旋转角度恢复为0。</li>
+</ul>
+<h3>透视校正 (待实现)</h3>
+<p>用于修正因拍摄角度导致的梯形失真。</p>
+<h3>工作区域 (待实现)</h3>
+<p>用于选择图像中需要处理的特定矩形区域。</p>
+
+<hr>
+
+<h2 id="stage2">第二阶段：二值化</h2>
+<p>此阶段将彩色或灰度图像转换为只有黑白两色的图像，以便计算机识别文字。</p>
+<h3>灰度图</h3>
+<p>将彩色图像转换为灰度图像，是二值化处理的第一步，通常建议勾选。</p>
+<h3>高斯模糊</h3>
+<p>在二值化前对图像进行轻微模糊，可以有效去除一些细小的噪点，让文字边缘更平滑。内核大小越大，模糊程度越高。</p>
+<h3>二值化方法</h3>
+<ul>
+    <li><strong>全局阈值 (Global)</strong>:
+        <ul>
+            <li><strong>原理</strong>: 使用一个固定的亮度“门槛”来区分黑白。所有比门槛亮的像素变白，暗的变黑。</li>
+            <li><strong>适用</strong>: 光照非常均匀的扫描件。</li>
+            <li><strong>参数</strong>: <code>阈值</code>滑块，手动调整门槛值。</li>
+        </ul>
+    </li>
+    <li><strong>自适应阈值 (Adaptive)</strong>:
+        <ul>
+            <li><strong>原理</strong>: 不使用全局统一的门槛，而是为图像的每个小区域单独计算最佳门槛。</li>
+            <li><strong>适用</strong>: <strong>强烈推荐</strong>，尤其适合光照不均的古籍照片。</li>
+            <li><strong>参数</strong>: <code>块大小</code>决定了计算门槛的邻域范围；<code>常量C</code>是一个微调值，从均值或加权均值中减去。</li>
+        </ul>
+    </li>
+    <li><strong>大津法 (Otsu)</strong>:
+        <ul>
+            <li><strong>原理</strong>: 一种自动寻找全局最佳门槛的算法。</li>
+            <li><strong>适用</strong>: 光照比较均匀，且图像中有明显的前景（文字）和背景（纸张）区分。</li>
+            <li><strong>参数</strong>: 无，全自动。</li>
+        </ul>
+    </li>
+</ul>
+
+<hr>
+
+<h2 id="stage3">第三阶段：噪声移除</h2>
+<p>此阶段在二值化图像的基础上，移除多余的噪点、连接断裂的笔画。</p>
+
+<h3>形态学操作</h3>
+<p>通过结构元素对图像进行基础的清洗。<code>开运算</code>可以去除小的孤立噪点，<code>闭运算</code>可以填充文字内部的小孔洞或连接断裂的笔画。</p>
+
+<h3>按尺寸过滤</h3>
+<p>通过计算每个连通区域（轮廓）的面积，移除过大或过小的对象。面积以占总图像面积的百分比计算，这是最常用和最有效的过滤方法之一。</p>
+
+<h3>按形状过滤 (高级)</h3>
+<p>这是一组高级过滤器，用于根据轮廓的几何特征来区分文字和非文字对象。</p>
+<ul>
+    <li><strong>按长宽比筛选</strong>: 移除特别“扁”或特别“长”的对象，例如可以用来过滤表格的水平或垂直线。</li>
+    <li><strong>按凸性比筛选</strong>: 根据轮廓的“饱满”程度进行筛选。一个完美的凸形（如圆形、矩形）凸性比为1.0，而一个有凹陷的文字（如“凹”）或不规则的噪点，凸性比会更低。此功能可以保留那些“接近”凸形的文字，同时过滤掉不规则的噪点。</li>
+    <li><strong>按顶点数筛选</strong>: 移除轮廓近似多边形的顶点数<strong>小于</strong>设定值的对象。这可以用来过滤掉简单的几何形状（如直线、方框），因为文字的轮廓通常比较复杂，顶点数较多。</li>
+</ul>
+
+<hr>
+
+<h2 id="stage4">第四阶段：OCR与导出</h2>
+<p>此阶段运行OCR识别，并提供导出功能。</p>
+
+</body>
+</html>

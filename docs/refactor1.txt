@@ -1,0 +1,73 @@
+项目重构日志
+ ========================
+
+ 本文档记录了项目从初始状态到当前稳定架构的主要重构步骤、遇到的问题以及解决方案。
+
+ ---
+
+ ### 1. 问题：硬编码与不安全的数据解析
+ *   **现象**: const.py 中硬编码了调试路径。使用 ast.literal_eval 从 .ini 文件中解析列表等复杂数据。
+ *   **风险**: 硬编码不灵活；eval 存在安全和性能风险。
+ *   **解决方案**:
+     *   移除 const.py，改用 argparse 在 app.py 中处理命令行参数。
+     *   创建 param_utils.py，实现专门的、安全的序列化/反序列化函数来处理列表数据。
+
+ ### 2. 问题：模型-视图耦合
+ *   **现象**: ProjectManager (模型) 持有 MainUI (视图) 的引用，并直接调用其方法（如 setWindowTitle）和 QMessageBox。
+ *   **风险**: 违反了MVC/MVVM基本原则，导致模块无法独立测试和维护。
+ *   **解决方案**:
+     *   彻底移除 ProjectManager 对 MainUI 的依赖。
+     *   ProjectManager 继承 QObject，通过信号 (project_activated, file_list_updated) 广播其状态变化。
+ *   所有UI交互（如文件对话框、消息框）的逻辑全部移回 `MainUI`。`MainUI` 监听 `ProjectManager` 的信号并更新自身。
+
+ ### 3. 问题：上帝对象 `main_ui.py`
+ *   **现象**: main_ui.py 文件巨大，承担了UI布局、状态管理、事件分发、图像交互等几乎所有职责。
+ *   **风险**: 代码难以阅读和维护，任何小的改动都可能引发雪崩效应。
+ *   **解决方案 (分步拆解)**:
+     1.  **提取交互逻辑**: 创建 ImageInteractionHandler，将所有与 ZoomableLabel 交互的逻辑（如画线、画框、编辑）从 MainUI 中移出。
+     2.  **提取控制面板**: 创建 ControlPanel，将主窗口右侧的所有UI元素（文件列表、参数页面栈、导航按钮）及其布局和信号转发逻辑封装进去。
+     3.  **提取图像视图**: 发现 MainUI 和 ImageComparisonWindow 中存在重复的 create_image_frame 方法。创建可复用的 ImageViewer 控件，封装了图像显示、缩放、平移的所有相关控件和逻辑。
+
+ ### 4. 问题：混乱的数据流与参数管理
+ *   **现象**:
+     *   使用一个无类型的字典 (image_params) 在各个模块间传递，类型和键名全靠“约定”，极易出错。
+     *   AppContext.update_image_processing 方法是一个“垃圾桶”，混合了参数更新、流水线执行、结果保存等多个职责。
+ *   UI控件在每次改变时，都由 `MainUI` 去“拉取”所有页面的所有参数，效率低下且逻辑混乱。
+ *   **风险**: 类型错误（如 `float` 和 `int` 的 `|` 操作）、键名拼写错误、默认值不一致等问题频发。
+ *   **解决方案**:
+     1.  **引入数据契约**: 创建 ProcessingParameters dataclass，作为所有参数的“单一事实来源”，明确定义了每个参数的名称、**类型**和默认值。
+     2.  **重构 AppContext**:
+         *   将 update_image_processing 拆分为 update_parameters (只负责更新参数) 和 _execute_pipeline (只负责执行处理)。
+         *   AppContext 成为所有类型转换的最终权威。update_parameters 方法会根据 ProcessingParameters 中定义的类型，强制转换从UI收到的值。
+     3.  **实现单向数据流**:
+         *   UI控件的 `value_changed_finished` 信号直接将**单个**参数的更新“推送”给 `AppContext`。
+         *   AppContext 在状态更新后，通过信号将**完整的**、权威的 ProcessingParameters 对象广播给UI，UI被动地用新数据刷新自己。
+     4.  **清理死代码**: 删除了所有参数页面中无用的 `get_params` 和 `reset_params` 方法。
+
+ ### 5. 问题：脆弱的算法与事件分发
+ *   **现象**:
+     *   opencv_operations.py 中的噪声移除功能由一长串 if/elif 实现。
+     *   main_ui.py 中的任务处理器 (_on_task_started) 同样使用 if/elif 和“魔法字符串”进行事件分发。
+ *   **风险**: 违反“开闭原则”，难以扩展和维护。
+ *   **解决方案**:
+     1.  **过滤器链模式**: 将噪声移除的每个过滤条件（按尺寸、按形状等）重构为独立的、可组合的函数。
+     2.  **字典分发**: 将 if/elif 链条替换为字典映射，将任务名 (TaskName 枚举) 映射到具体的处理函数。
+
+ ### 6. 问题：职责不清的模块
+ *   **现象**:
+     *   tools.py 是一个大杂烩，混合了OCR和翻译功能。
+     *   ProjectManager 既管理项目文件列表，又负责单张图片的数据存取细节。
+ *   **风险**: 模块耦合度高，难以复用和修改。
+ *   **解决方案**:
+     1.  **拆分服务**: 移除 tools.py，创建职责单一的 OcrService 和 TranslationService。
+     2.  **提取类**: 创建 ImageDataStore 类，专门负责单张图片的数据存取（参数、阶段性结果），ProjectManager 只保留项目级别的管理职责。
+
+ ### 7. 问题：不诚实的命名
+ *   **现象**: AppContext 中的 processed_image 和 ocr_image 变量名具有误导性。前者通常是预览图，后者才是真正的阶段性主输出。
+ *   **风险**: 开发者会根据错误的命名做出错误的假设，导致逻辑错误。
+ *   **解决方案**:
+     *   全局重命名: processed_image -> preview_image, ocr_image -> main_result_image。让变量名诚实地反映其真实用途。
+
+ ---
+
+ **总结**: 整个重构过程遵循了“单一职责原则”和“关注点分离”的核心思想，通过提取类、引入强类型契约、理顺数据流等手段，将一个混乱、脆弱的初始版本，重构为了一个结构清晰、健壮且易于扩展的应用程序架构。

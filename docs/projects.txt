@@ -1,0 +1,92 @@
+项目概述与架构说明
+ ========================
+
+ 本文档旨在为后续的开发者提供一个关于本项目的高层概览，包括其核心架构、数据流和关键设计决策。
+
+ ---
+
+ ## 1. 项目背景 (Project Background)
+
+ 本项目是一个专为处理扫描件而设计的桌面应用程序。其核心功能是通过一个多阶段的、可交互的图像处理流水线，对输入的图片进行几何校正、二值化、噪声移除，最终提取文字（OCR）并提供翻译。
+
+ ---
+
+ ## 2. 核心架构 (Core Architecture)
+
+ 项目采用了一种类似模型-视图-控制器（MVC）的分层架构，以确保不同模块之间的关注点分离（Separation of Concerns）。
+
+ ### UI (视图层 - View)
+ *   **main_ui.py**: 主窗口，作为所有UI组件的容器。
+ *   **control_panel.py**: 右侧控制面板。它封装了文件列表、参数页面栈和导航按钮。
+ *   **image_viewer.py**: 左侧图像显示控件。它封装了图像标签、滚动区域以及缩放/平移滑块。
+ *   **pages/*.py**: 存放了每个处理阶段对应的参数设置页面。
+ *   **ImageComparisonWindow.py**: 一个独立的、用于对比处理前后图像的窗口。
+
+ ### 状态管理 (State Management)
+ *   **app_context.py**: **应用程序的单一事实来源 (Single Source of Truth)**。这是整个应用的核心。
+     *   它持有所有核心状态，包括当前正在处理的图片路径、完整的参数对象 (ProcessingParameters) 以及当前所处的处理阶段。
+ *   它负责响应来自UI的参数更新请求，并编排 `ImagePipeline` 的执行流程。
+
+ ### 核心逻辑 (模型层 - Model)
+ *   **project_manager.py**: **项目管理器**。其唯一职责是管理一个项目中的图片文件列表。它负责扫描项目目录、处理多页TIFF文件，并将文件列表提供给UI。
+ *   **image_data_store.py**: **单图片数据仓库**。其唯一职责是管理**一张图片**的所有衍生数据。它知道如何拼接路径、读写这张图片的参数文件 (.ini) 和各个阶段的处理结果 (.png)。
+ *   **image_pipeline.py**: **图像处理流水线**。它定义了从原始图像到最终OCR图像的完整处理步骤序列。它本身不包含算法实现，而是调用 OpenCVOperations。
+ *   **opencv_operations.py**: **算法实现层**。封装了所有具体的OpenCV图像处理算法，如几何校正、二值化、噪声移除等。
+ *   **task_manager.py**: **后台任务管理器**。所有耗时的操作（OCR、翻译、批量保存）都由它在独立的 QThread 中执行，以防止UI线程被阻塞。
+ *   **ocr_service.py & translation_service.py**: **外部服务封装**。将OCR和翻译功能分别封装在独立的、职责单一的服务类中。
+
+ ---
+
+ ## 3. 数据流 (Data Flow)
+
+ 项目严格遵循一个**单向数据流**模型，以确保状态的可预测性和易于调试。
+
+ *   **从UI到核心 (UI -> AppContext)**:
+     1.  用户在UI上进行操作（例如，拖动一个滑块）。
+     2.  对应的UI控件（如 SliderSpinBox）发射一个信号，信号中包含一个**只描述单个变化**的字典，例如 {'blur_ksize': 5}。
+     3.  `AppContext` 的 `update_parameters` 方法接收到这个信号。
+     4.  AppContext 更新其内部持有的 ProcessingParameters 对象的状态。
+     5.  AppContext 调用 ProjectManager (最终委托给 ImageDataStore) 将**完整的、最新的**参数对象原子化地保存到 .ini 文件。
+     6.  `AppContext` 调用 `_execute_pipeline` 方法，触发图像的重新处理。
+
+ *   **从核心到UI (AppContext -> UI)**:
+     1.  当 AppContext 的状态发生改变后（例如，_execute_pipeline 执行完毕，或通过 set_current_image 加载了新图片），它会发射信号，如 image_updated 和 params_applied_to_ui。
+     2.  这些信号会携带**完整的、权威的**状态数据（例如，处理后的图像 preview_image，或完整的 ProcessingParameters 对象）。
+     3.  `MainUI` 和其他UI组件监听这些信号。
+     4.  当收到信号时，UI组件**被动地**用收到的新数据来更新自己的显示。UI自身不存储任何状态，它只是 AppContext 状态的一个“镜像”。
+
+ ---
+
+ ## 4. 关键数据结构与设计模式 (Key Data Structures & Patterns)
+
+ ### 数据结构
+ *   **ProcessingParameters (parameters.py)**: **项目中最重要的数据结构**。这是一个 dataclass，它为所有图像处理参数提供了一个强类型的“契约”。它定义了每个参数的名称、**类型**和默认值。它是所有类型转换逻辑的最终权威。
+ *   **TaskName (task_definitions.py)**: 一个 Enum，用于替换“魔法字符串”，为 TaskManager 和 MainUI 之间的通信提供类型安全。
+ *   **.ini 文件**: 作为参数的持久化层。ini_manager.py 负责读写，但它只处理字符串。所有值的解析和类型转换都由 ProcessingParameters.from_dict 方法负责。
+ *   **序列化字符串**: 对于无法直接存入 .ini 文件的复杂数据（如点列表），param_utils.py 提供了专门的序列化/反序列化工具。
+
+ ### 设计模式
+ *   **单一职责原则 (Single Responsibility Principle)**: 这是整个重构过程的核心指导原则。
+     *   ProjectManager 被拆分，其管理单张图片数据的职责被提取到 ImageDataStore。
+ *   臃肿的 `Tools` 类被拆分为职责清晰的 `OcrService` 和 `TranslationService`。
+ *   巨大的 MainUI 类被拆分为 MainUI (容器), ControlPanel (控制面板), ImageViewer (图像显示) 和 ImageInteractionHandler (交互逻辑)。
+ *   **信号与槽 (Signals and Slots)**: Qt的核心机制，被广泛用于实现模块间的低耦合通信。
+ *   **状态模式 (State Pattern)**: 应用于 zoomable_label.py。每种交互模式（画线、画框、编辑）都被封装在一个独立的 InteractionState 子类中，彻底消除了 if/elif 链条，并使添加新交互模式变得容易。
+ *   **策略/过滤器链模式 (Strategy/Filter Chain Pattern)**: 应用于 opencv_operations.py 的噪声移除功能。每个过滤条件（按尺寸、按形状等）都是一个独立的函数，它们被动态地组合成一个“过滤器链”来处理图像，这使得算法的扩展变得非常简单。
+
+ ---
+
+ ## 5. 如何添加新功能 (How to Add New Features)
+
+ *   **添加一个新的处理阶段**:
+     1.  在 ImagePipeline 中增加一个新的 elif 分支。
+     2.  在 OpenCVOperations 中添加对应的 apply_stageX_... 方法。
+     3.  在 ControlPanel 中创建一个新的参数页面 (pages/new_page.py) 并添加到 QStackedWidget。
+     4.  在 ProcessingParameters 中定义新阶段所需的参数。
+ *   **添加一个新的交互模式**:
+     1.  在 interaction_states.py 中创建一个新的 InteractionState 子类，并实现其 mouse_... 和 paint 方法。
+     2.  在 InteractionMode 枚举中添加新模式的定义。
+     3.  在 ZoomableLabel 的 state_map 字典中添加新模式到新状态类的映射。
+ *   **添加一个新的OCR或翻译引擎**:
+     1.  创建一个新的服务类，例如 NewOcrService。
+     2.  在 TaskManager 中替换或增加对新服务的调用。

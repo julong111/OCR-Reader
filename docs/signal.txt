@@ -1,0 +1,134 @@
+好的，我们现在来详细梳理所有信号的名称、流向和作用。清晰的命名和对事件流的理解是高质量重构的基础。
+
+### 信号系统全景分析
+
+#### 1. `ProjectManager` (工程文件系统)
+
+这个类是数据层，负责与文件系统交互，并向外广播“工程级别”的事件。
+
+*   **信号名称**: `signal_projectmanager_project_activated`
+    *   **定义文件**: `src/core/project_manager.py`
+    *   **含义与作用**: 当一个工程被成功打开或创建时发出，用于通知UI更新窗口标题、启用相关功能。
+    *   **信号流向**: `ProjectManager` -> `MainUI`
+
+*   **信号名称**: `signal_projectmanager_file_list_updated`
+    *   **定义文件**: `src/core/project_manager.py`
+    *   **含义与作用**: 当扫描工程目录后，文件列表发生变化时发出，用于刷新UI上的文件列表。
+    *   **信号流向**: `ProjectManager` -> `MainUI`
+
+*   **信号名称**: `signal_projectmanager_scan_finished`
+    *   **定义文件**: `src/core/project_manager.py`
+    *   **含义与作用**: 当文件扫描结束后发出，用于在未找到文件时给用户提示。
+    *   **信号流向**: `ProjectManager` -> `MainUI`
+
+---
+
+#### 2. `AppContext` (全局状态管理器)
+
+这个类是程序的状态核心，当核心数据（如当前图片、参数、阶段）变化时，它会向外广播。
+
+*   **信号名称**: `signal_appcontext_image_loaded`
+    *   **定义文件**: `src/core/app_context.py`
+    *   **含义与作用**: 当一个全新的图像及其关联参数被加载到内存后发出，用于触发UI进行“新图加载”相关的准备工作（如重置缩放）。
+    *   **信号流向**: `AppContext` -> `MainUI`
+
+*   **信号名称**: `signal_appcontext_image_updated`
+    *   **定义文件**: `src/core/app_context.py`
+    *   **含义与作用**: 当图像处理流水线执行完毕，预览图更新后发出，命令UI刷新图像显示区域。
+    *   **信号流向**: `AppContext` -> `MainUI`
+
+*   **信号名称**: `signal_appcontext_context_will_change`
+    *   **定义文件**: `src/core/app_context.py`
+    *   **含义与作用**: 这是一个“预警”信号，在切换图片或处理阶段之前发出，用于命令相关组件（如`ImageInteractionHandler`）取消任何正在进行的交互。
+    *   **信号流向**: `AppContext` -> `ImageInteractionHandler`
+
+*   **信号名称**: `signal_appcontext_stage_changed`
+    *   **定义文件**: `src/core/app_context.py`
+    *   **含义与作用**: 当处理阶段（Stage）已经切换后发出，用于通知UI切换到对应的参数面板。
+    *   **信号流向**: `AppContext` -> `MainUI`
+
+*   **信号名称**: `signal_appcontext_params_applied_to_ui`
+    *   **定义文件**: `src/core/app_context.py`
+    *   **含义与作用**: 当一组新的参数需要被应用到UI控件上时发出，用于将参数值同步到滑块、复选框等。
+    *   **信号流向**: `AppContext` -> `MainUI`
+
+---
+
+#### 3. `GeometricCorrectionPage` (及其他UI页面)
+
+这些UI页面是用户操作的起点，它们将用户的点击行为转换成“请求”信号，发给父容器。
+
+*   **信号名称**: `signal_geometriccorrectionpage_area_edit_requested` (以此为例)
+    *   **定义文件**: `src/view/pages/geometric_correction_page.py`
+    *   **含义与作用**: 用户点击了“编辑选中区域”按钮，请求进入编辑模式。
+    *   **信号流向**: `GeometricCorrectionPage` -> `ControlPanel` -> `MainUI` -> `ImageInteractionHandler`
+
+*   **信号名称**: `signal_geometriccorrectionpage_area_selection_changed`
+    *   **定义文件**: `src/view/pages/geometric_correction_page.py`
+    *   **含义与作用**: 当工作区列表的选中项发生变化时发出。
+    *   **信号流向**: `GeometricCorrectionPage` -> `ControlPanel` -> `MainUI`
+    *   **分析**: 此信号现在连接到一个轻量级的刷新槽函数，只更新高亮框，性能问题已解决。
+
+---
+
+#### 4. `ControlPanel` (UI面板外观)
+
+这个类是所有右侧UI面板的容器，它扮演一个“信号转发器”的角色。
+
+*   **信号名称**: `signal_controlpanel_prev_stage_requested` (以此为例)
+    *   **定义文件**: `src/view/control_panel.py`
+    *   **含义与作用**: 它自身不产生业务逻辑，而是将从子控件（如`prev_btn`按钮）接收到的`clicked`信号，或从子页面（如`GeometricCorrectionPage`）接收到的请求信号，重新包装成自己的信号再发出去。
+    *   **信号流向**: (`Button` 或 `Page`) -> `ControlPanel` -> `MainUI`
+    *   **分析**: 这是一个合理的设计模式（Facade），它降低了`MainUI`和`ControlPanel`内部实现之间的耦合。
+
+---
+
+#### 5. `ImageInteractionHandler` (交互处理器)
+
+这个类处理所有图像上的鼠标操作，并在交互状态更新时发出通知。
+
+*   **信号名称**: `signal_imageinteractionhandler_overlay_needs_update`
+    *   **定义文件**: `src/view/image_interaction_handler.py`
+    *   **含义与作用**: 在交互**进行中**（如拖动角点）发出，请求UI只刷新图像上的高亮框和辅助线。
+    *   **信号流向**: `ImageInteractionHandler` -> `MainUI`
+
+*   **信号名称**: `signal_imageinteractionhandler_interaction_ended`
+    *   **定义文件**: `src/view/image_interaction_handler.py`
+    *   **含义与作用**: 在交互**被彻底结束**（如按ESC或切换上下文）时发出，命令UI进行状态清理（如清除列表选中）。
+    *   **信号流向**: `ImageInteractionHandler` -> `MainUI` -> `GeometricCorrectionPage`
+
+---
+
+#### 6. `TaskManager` (后台任务管理器)
+
+这个类管理所有耗时的后台任务，并通过信号与主UI线程通信，报告任务的进度、结果或错误。
+
+*   **信号名称**: `signal_taskmanager_task_started`, `signal_taskmanager_task_finished`
+    *   **定义文件**: `src/core/task_manager.py`
+    *   **含义与作用**: 通用信号，在任何一个后台任务开始或结束时发出，用于管理UI状态（例如，禁用/启用相关按钮）。
+    *   **信号流向**: `TaskManager` -> `MainUI`
+
+*   **信号名称**: `signal_taskmanager_ocr_finished`, `signal_taskmanager_translation_finished`, `signal_taskmanager_model_loaded`
+    *   **定义文件**: `src/core/task_manager.py`
+    *   **含义与作用**: 针对特定任务，当任务成功完成时发出，并携带任务结果（如OCR文本）。
+    *   **信号流向**: `TaskManager` -> `MainUI`
+
+*   **信号名称**: `signal_taskmanager_batch_progress`, `signal_taskmanager_batch_finished`
+    *   **定义文件**: `src/core/task_manager.py`
+    *   **含义与作用**: 在批量保存任务中，用于更新进度条和报告最终完成信息。
+    *   **信号流向**: `TaskManager` -> `MainUI`
+
+*   **信号名称**: `signal_taskmanager_task_error`
+    *   **定义文件**: `src/core/task_manager.py`
+    *   **含义与作用**: 当任何后台任务执行出错时发出，并携带错误信息，用于向用户显示错误提示。
+    *   **信号流向**: `TaskManager` -> `MainUI`
+
+---
+
+### 总结
+
+经过重构，信号系统现在更加清晰和健壮：
+
+1.  **职责明确**：原先含义模糊的“上帝信号”已被拆分为 `overlay_needs_update` (交互中) 和 `interaction_ended` (交互结束) 两个职责清晰的信号。
+2.  **性能优化**：低效的UI刷新问题已解决，列表选择等操作现在只会触发轻量级的界面更新。
+3.  **代码清理**：冗余的信号已被移除，减少了代码的混乱度。
