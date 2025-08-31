@@ -9,6 +9,7 @@ dependencies = [
     "numpy<2.0",
     "pillow",
     "pyqt5==5.15.10",
+    "pyqt5-qt5; sys_platform != 'win32'",
     "pytesseract",
     "sentencepiece",
     "torch==2.2.2",
