@@ -13,6 +13,7 @@ dependencies = [
     "sentencepiece",
     "torch==2.2.2",
     "transformers",
+    "pyinstaller>=6.15.0",
 ]
 [tool.uv]
 constraint-dependencies = ["pyqt5-qt5 <=5.15.2"]
