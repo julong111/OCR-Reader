@@ -8,10 +8,15 @@ dependencies = [
     "opencv-python==4.9.0.80",
     "numpy<2.0",
     "pillow",
-    "pyqt5==5.15.10",
-    "pyqt5-qt5; sys_platform != 'win32'",
+    "pyqt5==5.15.2",
     "pytesseract",
     "sentencepiece",
     "torch==2.2.2",
     "transformers",
 ]
+[tool.uv]
+constraint-dependencies = ["pyqt5-qt5 <=5.15.2"]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
