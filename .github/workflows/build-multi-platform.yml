@@ -32,8 +32,11 @@ jobs:
         with:
           version: "latest"
 
-      - name: Install the project and dev dependencies
-        run: uv sync --extra dev
+      - name: Install the project dependencies
+        run: uv sync
+
+      - name: Install PyInstaller
+        run: uv pip install PyInstaller
 
       - name: Build application
         run: |
