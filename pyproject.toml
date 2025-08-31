@@ -15,7 +15,3 @@ dependencies = [
     "torch==2.2.2",
     "transformers",
 ]
-
-[[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-default = true
