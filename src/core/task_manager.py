@@ -60,6 +60,9 @@ class TaskManager(QObject):
         self.worker.error.connect(self.signal_taskmanager_task_error.emit)
         self.worker.finished.connect(lambda: self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE))
         self.worker.start()
+        # result = self.translation_service.run(text)
+        # self.signal_taskmanager_translation_finished.emit(result)
+        # self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE)
 
     def start_load_model(self, model_path):
         if self._is_task_running():

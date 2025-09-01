@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QProgressDialog,
 )
 
+from app_config import APP_ROOT
 from core.app_context import AppContext
 from core.image_pipeline import ImagePipeline
 from core.opencv_operations import convert_cv_to_qpixmap
@@ -77,7 +78,7 @@ class MainUI(QMainWindow):
         # --- 初始化帮助窗口 ---
         self.help_window = HelpWindow(self)
         # 假设帮助文件在项目根目录的 assets/help/ 文件夹下
-        help_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'assets', 'help', 'content.html'))
+        help_file_path = os.path.join(APP_ROOT, 'assets', 'help', 'content.html')
         self.help_window.load_content(help_file_path)
         
         # 这必须在init_ui之前调用，因为它需要UI元素
@@ -182,7 +183,7 @@ class MainUI(QMainWindow):
 
     def _load_stylesheet(self):
         # Loads an external stylesheet.
-        style_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'assets', 'style.qss'))
+        style_path = os.path.join(APP_ROOT, 'assets', 'style.qss')
         try:
             with open(style_path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())

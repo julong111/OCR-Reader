@@ -10,7 +10,8 @@ wheels/
 .venv
 
 uv.lock
-
+vendor/
 feiqi/
 test/
 release/
+logs/

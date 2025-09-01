@@ -13,14 +13,15 @@ dependencies = [
     "sentencepiece==0.2.1",
     "torch==2.2.2", # last-mac intel cpu mast 2.2.2
     "transformers==4.39.3", #配合touch的版本
+    "pynvml>=12.0.0",
 ]
 
 # 在这里定义可选依赖项，包括开发依赖
-[project.optional-dependencies]
-dev = ["pyinstaller"]
-
-[tool.uv]
-constraint-dependencies = ["pyqt5-qt5 <=5.15.2"]
+#[project.optional-dependencies]
+#dev = ["pyinstaller"]
+#
+#[tool.uv]
+#constraint-dependencies = ["pyqt5-qt5 <=5.15.2"]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
