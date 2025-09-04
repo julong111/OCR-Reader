@@ -26,6 +26,13 @@ from PyQt5.QtWidgets import QApplication, QMessageBox
 
 logger = logging.getLogger(__name__)
 
+# 解决Windows上可能的OpenMP库冲突导致的静默崩溃问题。
+# 这必须在导入任何可能使用OpenMP的库（如PyTorch, NumPy）之前完成。
+if sys.platform == "win32":
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+    # 禁用tokenizers库的并行处理，以避免底层库冲突导致的静默崩溃。
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
 if __name__ == "__main__":
     # 将日志初始化作为程序的第一步
     setup_logging()
