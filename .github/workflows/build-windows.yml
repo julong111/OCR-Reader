@@ -36,7 +36,7 @@ jobs:
 
       - name: Build application
         run: |
-          python -m pip install --upgrade pip PyQt5 PyInstaller opencv-python==4.9.0.80 numpy<2.0 pillow==11.3.0 pytesseract==0.3.13 sentencepiece==0.2.1 torch==2.2.2 transformers==4.39.3
+          python -m pip install --upgrade pip PyInstaller
           python -m PyInstaller --windowed src/app.py
 
       - name: Archive artifacts
