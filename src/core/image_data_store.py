@@ -31,8 +31,8 @@ class ImageDataStore:
         
         param_file_path = self._get_param_path(create_if_needed=True)
         if param_file_path:
-            image_params, nav_params = params.to_dicts()
-            self.ini_manager.save_params(param_file_path, image_params, nav_params)
+            param_sections = params.to_dicts()
+            self.ini_manager.save_params(param_file_path, param_sections)
 
     def load_stage_result(self, stage_index):
         

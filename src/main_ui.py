@@ -20,7 +20,7 @@ from core.app_context import AppContext
 from core.image_pipeline import ImagePipeline
 from core.opencv_operations import convert_cv_to_qpixmap
 from core.param_utils import deserialize_rect_list, serialize_rect_list
-from core.parameters import ProcessingParameters
+from core.parameters import ProcessingParameters, ViewState
 from core.project_manager import ProjectManager
 from core.task_manager import TaskManager, TaskName
 from view.ImageComparisonWindow import ImageComparisonWindow
@@ -70,8 +70,7 @@ class MainUI(QMainWindow):
         self.task_manager.signal_taskmanager_batch_finished.connect(self._on_batch_finished)
 
         # --- 状态标志 ---
-        self._reset_zoom_on_display = False
-        self._fit_view_on_stage_change = False
+        self._apply_view_state_on_display = False
 
         self.batch_progress_dialog = None
 
@@ -352,20 +351,20 @@ class MainUI(QMainWindow):
     def go_to_prev_stage(self):
         # 切换到上一个处理阶段
         if self.app_context.current_stage_index > 0:
+            self._save_current_view_state()
             self.app_context.set_stage(self.app_context.current_stage_index - 1)
 
     def go_to_next_stage(self):
         # 切换到下一个处理阶段
         if self.app_context.current_stage_index < self.control_panel.get_stage_count() - 1:
-            # 如果从第一阶段进入后续阶段，设置一个标志，以便在显示时自动适应视图
-            if self.app_context.current_stage_index == 0:
-                self._fit_view_on_stage_change = True
+            self._save_current_view_state()
             self.app_context.set_stage(self.app_context.current_stage_index + 1)
 
     def _update_navigation_buttons(self):
         # 根据当前阶段更新导航按钮的启用状态
         # 只有当工程打开且有图片被选中时，导航按钮才可用
-        is_project_active = self.project_manager.project_path is not None and self.app_context.current_image_identifier is not None
+        is_project_active = (self.project_manager.project_path is not None and
+                             self.app_context.current_image_identifier is not None)
         self.control_panel.update_navigation_buttons(
             is_project_active,
             self.app_context.current_stage_index,
@@ -388,13 +387,14 @@ class MainUI(QMainWindow):
         # 响应AppContext中阶段变化。
         self.control_panel.set_current_stage(index)
         self._update_navigation_buttons()
+        self._apply_view_state_on_display = True
 
     def _on_image_loaded(self):
         # 当AppContext加载完一张新图片后，更新UI。
         try:
             if self.app_context.original_image is None:
                 raise ValueError("无法加载图像")
-            self._reset_zoom_on_display = True
+            self._apply_view_state_on_display = True
             # The image processing is already triggered inside AppContext.set_current_image
             # Configure UI pages that depend on image size
             self.control_panel.stage2_page.configure_for_image(self.app_context.original_image)
@@ -416,13 +416,31 @@ class MainUI(QMainWindow):
         self.image_viewer.set_pixmap(preview_pixmap)
         self._update_label_overlays(self.image_viewer.image_label)
 
-        if self._reset_zoom_on_display:
-            self.image_viewer.fit_to_view()
-            self._reset_zoom_on_display = False
-        elif self._fit_view_on_stage_change:
-            self.image_viewer.fit_to_view()
-            self._fit_view_on_stage_change = False
+        if self._apply_view_state_on_display:
+            self._apply_view_state()
+            self._apply_view_state_on_display = False
 
+    def _save_current_view_state(self):
+        if not self.app_context.current_image_identifier:
+            return
+
+        current_stage = self.app_context.current_stage_index
+
+        zoom_factor = self.image_viewer.image_label.scale_factor
+        h_scroll = self.image_viewer.scroll_area.horizontalScrollBar().value()
+        v_scroll = self.image_viewer.scroll_area.verticalScrollBar().value()
+
+        state = ViewState(zoom=zoom_factor, h_scroll=h_scroll, v_scroll=v_scroll)
+        self.app_context.params.view_states[current_stage] = state
+
+    def _apply_view_state(self):
+        current_stage = self.app_context.current_stage_index
+        view_state = self.app_context.params.view_states.get(current_stage)
+
+        if view_state:
+            self.image_viewer.apply_view_state(view_state.zoom, view_state.h_scroll, view_state.v_scroll)
+        else:
+            self.image_viewer.fit_to_view()
     def _update_label_overlays(self, image_label):
         # Updates the visual overlays on the image label, like work areas.
         params = self.app_context.params

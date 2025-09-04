@@ -1,5 +1,5 @@
 # src/view/image_viewer.py
-from PyQt5.QtCore import Qt, QPoint, QSize, QSignalBlocker
+from PyQt5.QtCore import Qt, QPoint, QSize, QSignalBlocker, QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea
 
 from .custom_slider import CustomSlider
@@ -120,3 +120,19 @@ class ImageViewer(QWidget):
 
         self.scroll_area.horizontalScrollBar().setValue(new_h_val)
         self.scroll_area.verticalScrollBar().setValue(new_v_val)
+
+    def apply_view_state(self, zoom_factor, h_scroll, v_scroll):
+        """Applies a saved zoom and scroll state to the viewer."""
+        new_slider_value = int(zoom_factor * 100)
+
+        with QSignalBlocker(self.zoom_slider):
+            clamped_value = max(self.zoom_slider.minimum(), min(new_slider_value, self.zoom_slider.maximum()))
+            self.zoom_slider.setValue(clamped_value)
+
+        self.image_label.scale_factor = zoom_factor
+        self.image_label.update_scaled_pixmap()
+
+        # The scrollbar ranges might not be updated immediately after the pixmap resize.
+        # Using a single shot timer ensures this runs after the event loop has processed the resize.
+        QTimer.singleShot(0, lambda: self.scroll_area.horizontalScrollBar().setValue(h_scroll))
+        QTimer.singleShot(0, lambda: self.scroll_area.verticalScrollBar().setValue(v_scroll))

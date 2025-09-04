@@ -1,6 +1,13 @@
 # src/core/parameters.py
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict, fields, field
 
+
+@dataclass
+class ViewState:
+    """Represents the viewport state for a given stage."""
+    zoom: float = 1.0
+    h_scroll: int = 0
+    v_scroll: int = 0
 
 @dataclass
 class ProcessingParameters:
@@ -53,12 +60,39 @@ class ProcessingParameters:
     # --- Navigation ---
     current_stage: int = 0
 
+    # This will be populated by from_dict. It's not part of the constructor.
+    view_states: dict = field(default_factory=dict, init=False, repr=False)
+
     @classmethod
     def from_dict(cls, data: dict):
         # This is a simple way to create an instance from a dict that might be missing keys.
         # It leverages the default values defined in the dataclass.
         instance = cls()
         cls_fields = {f.name: f.type for f in fields(cls)}
+
+        # --- Custom parsing for view_states ---
+        view_states = {}
+        # Use a copy of keys to allow modification during iteration
+        data_copy = data.copy()
+        for key in data_copy:
+            if key.startswith(('zoom_', 'h_scroll_', 'v_scroll_')):
+                try:
+                    prefix, stage_str = key.split('_', 1)
+                    stage = int(stage_str)
+                    value = data.pop(key)  # remove from data to avoid processing later
+
+                    if stage not in view_states:
+                        view_states[stage] = ViewState()
+
+                    if prefix == 'zoom':
+                        view_states[stage].zoom = float(value)
+                    elif prefix == 'h_scroll':
+                        view_states[stage].h_scroll = int(value)
+                    elif prefix == 'v_scroll':
+                        view_states[stage].v_scroll = int(value)
+                except (ValueError, IndexError, TypeError):
+                    print(f"Warning: Could not parse view state key '{key}'. Ignoring.")
+        instance.view_states = view_states
 
         for key, value in data.items():
             if key in cls_fields:
@@ -81,7 +115,29 @@ class ProcessingParameters:
 
     def to_dicts(self):
         all_fields = asdict(self)
+
         nav_keys = {'current_stage'}
+        workarea_keys = {
+            'work_areas',
+            'work_area_crop_rect',
+            'relative_work_areas',
+            'sample_char_height',
+            'min_symbol_height',
+            'standard_char_rect',
+            'relative_standard_char_rect',
+            'min_symbol_rect',
+            'relative_min_symbol_rect'
+        }
+
         nav_params = {k: v for k, v in all_fields.items() if k in nav_keys}
-        image_params = {k: v for k, v in all_fields.items() if k not in nav_keys}
-        return image_params, nav_params
+        workarea_params = {k: v for k, v in all_fields.items() if k in workarea_keys}
+        image_params = {k: v for k, v in all_fields.items() if k not in nav_keys and k not in workarea_keys}
+
+        # Add view states to nav_params
+        if hasattr(self, 'view_states'):
+            for stage, state in self.view_states.items():
+                nav_params[f'zoom_{stage}'] = state.zoom
+                nav_params[f'h_scroll_{stage}'] = state.h_scroll
+                nav_params[f'v_scroll_{stage}'] = state.v_scroll
+
+        return {'image': image_params, 'nav': nav_params, 'workarea': workarea_params}

@@ -19,15 +19,14 @@ class IniManager:
                 all_params[key] = value # Keep it as a string
         return all_params
 
-    def save_params(self, file_path, image_params, nav_params, system_params=None):
-
+    def save_params(self, file_path, sections):
         if not file_path:
             return
 
         config = configparser.ConfigParser()
-        config['system'] = {k: str(v) for k, v in (system_params or {}).items()}
-        config['nav'] = {k: str(v) for k, v in nav_params.items()}
-        config['image'] = {k: str(v) for k, v in image_params.items()}
+        for section_name, params in sections.items():
+            if params:
+                config[section_name] = {k: str(v) for k, v in params.items()}
 
         try:
             with open(file_path, 'w', encoding='utf-8') as configfile:
