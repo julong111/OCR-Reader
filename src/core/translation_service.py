@@ -53,8 +53,20 @@ class TranslationService:
                     logger.info("操作系统:%s， 架构:%s", SYSTEM, MACHINE)
                     windows_cuda_path = os.path.join(vendor_path, 'torch-222-cu118-cp39-win-amd64')
                     if os.path.isdir(windows_cuda_path):
+                        # 1. 将 vendored torch 路径添加到 sys.path 以便 Python 找到模块
                         sys.path.insert(0, windows_cuda_path)
-                        logger.info("已加载 %s",windows_cuda_path)
+                        logger.info("已将 %s 添加到Python模块搜索路径", windows_cuda_path)
+
+                        # 2. 将 torch/lib 路径添加到 DLL 搜索路径，这是解决静默崩溃的关键
+                        torch_lib_path = os.path.join(windows_cuda_path, 'torch', 'lib')
+                        if os.path.isdir(torch_lib_path):
+                            try:
+                                os.add_dll_directory(torch_lib_path)
+                                logger.info("已将 %s 添加到DLL搜索路径", torch_lib_path)
+                            except AttributeError:
+                                logger.warning("os.add_dll_directory 不可用 (需要 Python 3.8+)。依赖库可能加载失败。")
+                        else:
+                            logger.warning("未找到PyTorch的lib目录，依赖库可能加载失败: %s", torch_lib_path)
                     else:
                         logger.info("未找到windows cuda依赖包，请将cuda依赖复制到项目启动目录vendor/torch-222-cu118-cp39-win-amd64中")
                 elif SYSTEM == "Linux" and (MACHINE == "AMD64" or MACHINE == "x86_64"):
@@ -63,6 +75,13 @@ class TranslationService:
                     logger.info("不支持的架构。 系统:%s 架构:%s", SYSTEM, MACHINE)
             else:
                 logger.info("未找到vendor目录，请将cuda依赖复制到vendor目录中")
+
+        # 解决Windows上可能的OpenMP库冲突导致的静默崩溃问题。
+        # 这必须在导入任何可能使用OpenMP的库（如PyTorch, NumPy）之前完成。
+        if sys.platform == "win32":
+            os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+            # 禁用tokenizers库的并行处理，以避免底层库冲突导致的静默崩溃。
+            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
         # 强制优先加载核心计算库，以解决Windows上的底层DLL冲突。
         import torch
