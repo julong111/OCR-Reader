@@ -1,5 +1,5 @@
 # src/view/pages/ocr_export_page.py
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, QSignalBlocker
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -17,6 +17,7 @@ class OcrExportPage(QWidget):
     run_translation_requested = pyqtSignal()
     save_single_requested = pyqtSignal()
     save_batch_requested = pyqtSignal()
+    parameters_changed = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -48,18 +49,27 @@ class OcrExportPage(QWidget):
         layout.addWidget(self.ocr_result_edit, 1)
 
         # Translation section
-        translation_layout = QHBoxLayout()
         self.translate_label = QLabel("翻译结果")
+        self.device_label = QLabel("翻译设备:")
+        self.device_combo = QComboBox()
         translation_model_label = QLabel("翻译模型:")
         self.translation_model_combo = QComboBox()
         self.translation_model_combo.addItem("Opus-MT (英-中)", "opus-mt-en-zh")
         self.run_translation_btn = QPushButton("翻译OCR")
-        translation_layout.addWidget(self.translate_label)
-        translation_layout.addStretch()
-        translation_layout.addWidget(translation_model_label)
-        translation_layout.addWidget(self.translation_model_combo)
-        translation_layout.addWidget(self.run_translation_btn)
-        layout.addLayout(translation_layout)
+
+        title_layout = QHBoxLayout()
+        title_layout.addWidget(self.translate_label)
+        title_layout.addStretch()
+        title_layout.addWidget(self.run_translation_btn)
+        layout.addLayout(title_layout)
+
+        settings_layout = QHBoxLayout()
+        settings_layout.addWidget(self.device_label)
+        settings_layout.addWidget(self.device_combo)
+        settings_layout.addWidget(translation_model_label)
+        settings_layout.addWidget(self.translation_model_combo)
+        settings_layout.addStretch()
+        layout.addLayout(settings_layout)
 
         self.translate_result_edit = QTextEdit()
         self.translate_result_edit.setReadOnly(False)
@@ -80,6 +90,8 @@ class OcrExportPage(QWidget):
         self.run_translation_btn.clicked.connect(self.run_translation_requested.emit)
         self.save_single_btn.clicked.connect(self.save_single_requested.emit)
         self.save_batch_btn.clicked.connect(self.save_batch_requested.emit)
+        self.ocr_lang_combo.currentIndexChanged.connect(self._on_ocr_lang_changed)
+        self.device_combo.currentIndexChanged.connect(self._on_device_changed)
 
     def get_selected_lang(self):
         return self.ocr_lang_combo.currentData()
@@ -95,3 +107,30 @@ class OcrExportPage(QWidget):
 
     def set_translation_text(self, text):
         self.translate_result_edit.setText(text)
+
+    def set_available_devices(self, has_cuda):
+        self.device_combo.clear()
+        self.device_combo.addItem("CPU", "cpu")
+        if has_cuda:
+            self.device_combo.addItem("GPU", "cuda")
+
+    def _on_ocr_lang_changed(self):
+        lang = self.ocr_lang_combo.currentData()
+        if lang:
+            self.parameters_changed.emit({'ocr_lang': lang})
+
+    def _on_device_changed(self):
+        device = self.device_combo.currentData()
+        if device:
+            self.parameters_changed.emit({'translation_device': device})
+
+    def set_params(self, params):
+        with QSignalBlocker(self.ocr_lang_combo):
+            index = self.ocr_lang_combo.findData(params.ocr_lang)
+            if index != -1:
+                self.ocr_lang_combo.setCurrentIndex(index)
+
+        with QSignalBlocker(self.device_combo):
+            index = self.device_combo.findData(params.translation_device)
+            if index != -1:
+                self.device_combo.setCurrentIndex(index)

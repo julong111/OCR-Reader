@@ -1,5 +1,11 @@
 # task_manager.py
 import os
+import sys
+import traceback
+
+from app_config import ( 
+    isDEBUG
+)
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QMessageBox
@@ -44,25 +50,46 @@ class TaskManager(QObject):
     def start_ocr(self, image, lang):
         if self._is_task_running():
             return
-        self.signal_taskmanager_task_started.emit(TaskName.OCR)
-        self.worker = Worker(self.ocr_service.run, image, lang)
-        self.worker.result.connect(self.signal_taskmanager_ocr_finished.emit)
-        self.worker.error.connect(self.signal_taskmanager_task_error.emit)
-        self.worker.finished.connect(lambda: self.signal_taskmanager_task_finished.emit(TaskName.OCR))
-        self.worker.start()
 
-    def start_translation(self, text):
+        self.signal_taskmanager_task_started.emit(TaskName.OCR)
+        if isDEBUG():
+            try:
+                result = self.ocr_service.run(image, lang)
+                self.signal_taskmanager_ocr_finished.emit(result)
+            except Exception as e:
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                self.signal_taskmanager_task_error.emit((e, tb_str))
+            finally:
+                self.signal_taskmanager_task_finished.emit(TaskName.OCR)
+        else:
+            self.worker = Worker(self.ocr_service.run, image, lang)
+            self.worker.result.connect(self.signal_taskmanager_ocr_finished.emit)
+            self.worker.error.connect(self.signal_taskmanager_task_error.emit)
+            self.worker.finished.connect(lambda: self.signal_taskmanager_task_finished.emit(TaskName.OCR))
+            self.worker.start()
+
+    def start_translation(self, text, device):
         if self._is_task_running():
             return
+
         self.signal_taskmanager_task_started.emit(TaskName.TRANSLATE)
-        self.worker = Worker(self.translation_service.run, text)
-        self.worker.result.connect(self.signal_taskmanager_translation_finished.emit)
-        self.worker.error.connect(self.signal_taskmanager_task_error.emit)
-        self.worker.finished.connect(lambda: self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE))
-        self.worker.start()
-        # result = self.translation_service.run(text)
-        # self.signal_taskmanager_translation_finished.emit(result)
-        # self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE)
+        if isDEBUG():
+            try:
+                result = self.translation_service.run(text, device)
+                self.signal_taskmanager_translation_finished.emit(result)
+            except Exception as e:
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                self.signal_taskmanager_task_error.emit((e, tb_str))
+            finally:
+                self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE)
+        else:
+            self.worker = Worker(self.translation_service.run, text, device)
+            self.worker.result.connect(self.signal_taskmanager_translation_finished.emit)
+            self.worker.error.connect(self.signal_taskmanager_task_error.emit)
+            self.worker.finished.connect(lambda: self.signal_taskmanager_task_finished.emit(TaskName.TRANSLATE))
+            self.worker.start()
 
     def start_load_model(self, model_path):
         if self._is_task_running():

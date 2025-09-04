@@ -6,11 +6,13 @@ dist/
 wheels/
 *.egg-info
 
+.DS_Store
+__MACOSX
+
 # Virtual environments
 .venv
-.DS_Store
-
 uv.lock
+
 vendor/
 feiqi/
 test/

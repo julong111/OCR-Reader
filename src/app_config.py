@@ -3,6 +3,13 @@ import os
 import sys
 import platform
 
+IS_DEBUG = False
+def setIsDEBUG(val):
+    global IS_DEBUG 
+    IS_DEBUG = val
+def isDEBUG():
+    return IS_DEBUG
+
 # --- 系统与架构 ---
 SYSTEM = platform.system()
 MACHINE = platform.machine()
@@ -63,3 +70,39 @@ def _get_tesseract_cmd():
 
 TESSERACT_CMD_PATH = _get_tesseract_cmd()
 
+
+def checkCUDAInfomation():
+    if SYSTEM =="Darwin" and MACHINE == "x86_64": # MAC x86_64 没有cuda
+        #logger.info("Darwin x86_64 不支持cuda")
+        pass
+    else:
+        try:
+            import pynvml
+            # 1. 初始化 NVML 库，这是所有操作的第一步。
+            pynvml.nvmlInit()
+            # 2. 获取系统中 GPU 的数量。
+            device_count = pynvml.nvmlDeviceGetCount()
+            if device_count > 0:
+                cuda_version_raw = pynvml.nvmlSystemGetCudaDriverVersion()
+                # 5. NVML 返回的版本号是整数形式，需要转换成常用的格式。
+                cuda_version = f"{cuda_version_raw // 1000}.{cuda_version_raw % 1000}"
+                # IS_CUDA_AVAILABLE = True
+                # DEVICE = "cuda"
+                # CUDA_DEVICE_COUNT = device_count
+                setCUDAAvailable(True)
+                setCUDADevice("cuda")
+                setCUDADeviceCount(device_count)
+                setCUDAVersion(cuda_version)
+            # else:
+                #logger.info("未找到cuda设备")
+
+        except pynvml.NVMLError as e:
+            pass
+            # logger.info("初始化 NVML 时出错。可能原因：NVIDIA 驱动未安装或服务未运行。")
+        finally:
+            # 无论成功或失败，最后都尝试解除初始化，释放资源。
+            try:
+                pynvml.nvmlShutdown()
+            except pynvml.NVMLError_Uninitialized:
+                # 如果初始化失败，这里会抛异常，可以忽略。
+                pass

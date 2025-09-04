@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QProgressDialog,
 )
 
-from app_config import APP_ROOT
+from app_config import APP_ROOT, isCUDAAvailable
 from core.app_context import AppContext
 from core.image_pipeline import ImagePipeline
 from core.opencv_operations import convert_cv_to_qpixmap
@@ -120,6 +120,7 @@ class MainUI(QMainWindow):
         self.interaction_handler.signal_imageinteractionhandler_overlay_needs_update.connect(self._update_overlays_slot)
 
         # --- Connect Signals ---
+        self.control_panel.stage4_page.set_available_devices(isCUDAAvailable())
         self._connect_control_panel_signals()
         self._connect_interaction_handler_signals()
         self.app_context.signal_appcontext_context_will_change.connect(self.interaction_handler.cancel_current_interaction)
@@ -362,7 +363,7 @@ class MainUI(QMainWindow):
 
         # 委托给每个页面去设置自己的UI
         # QSignalBlocker 可以在设置多个控件值时，临时阻止信号发射，防止update_image被多次调用
-        with QSignalBlocker(self.control_panel.stage1_page), QSignalBlocker(self.control_panel.stage2_page), QSignalBlocker(self.control_panel.stage3_page):
+        with QSignalBlocker(self.control_panel.stage1_page), QSignalBlocker(self.control_panel.stage2_page), QSignalBlocker(self.control_panel.stage3_page), QSignalBlocker(self.control_panel.stage4_page):
             self.control_panel.apply_params_to_ui(params)
 
     def _on_stage_changed(self, index):
@@ -474,8 +475,8 @@ class MainUI(QMainWindow):
             return
 
         self.control_panel.stage4_page.set_ocr_text('')
-        selected_lang = self.control_panel.stage4_page.get_selected_lang()
-        self.task_manager.start_ocr(self.app_context.main_result_image.copy(), selected_lang)
+        ocr_lang = self.app_context.params.ocr_lang
+        self.task_manager.start_ocr(self.app_context.main_result_image.copy(), ocr_lang)
 
     def _on_ocr_result(self, ocr_text):
         # OCR完成后的回调函数。
@@ -489,7 +490,8 @@ class MainUI(QMainWindow):
             return
 
         self.control_panel.stage4_page.set_translation_text('')
-        self.task_manager.start_translation(ocr_text)
+        device = self.app_context.params.translation_device
+        self.task_manager.start_translation(ocr_text, device)
 
     def _on_translation_result(self, translated_text):
         # 翻译完成后的回调函数。

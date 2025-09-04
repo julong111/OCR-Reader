@@ -123,6 +123,7 @@ class ControlPanel(QWidget):
         self.stage1_page.signal_geometriccorrectionpage_area_selection_changed.connect(self.signal_controlpanel_area_selection_changed)
         self.stage2_page.parameters_changed.connect(self.signal_controlpanel_parameters_changed)
         self.stage3_page.parameters_changed.connect(self.signal_controlpanel_parameters_changed)
+        self.stage4_page.parameters_changed.connect(self.signal_controlpanel_parameters_changed)
         self.stage3_page.reset_params_btn.clicked.connect(self.signal_controlpanel_reset_all_parameters_requested)
         self.stage4_page.run_ocr_requested.connect(self.signal_controlpanel_run_ocr_requested)
         self.stage4_page.run_translation_requested.connect(self.signal_controlpanel_run_translation_requested)
@@ -159,6 +160,7 @@ class ControlPanel(QWidget):
         self.stage1_page.set_params(params)
         self.stage2_page.set_params(params)
         self.stage3_page.set_params(params)
+        self.stage4_page.set_params(params)
 
     def get_stage_page(self, index):
         return self.processing_stack.widget(index)

@@ -53,6 +53,7 @@ class ProcessingParameters:
 
     # --- Stage 4: OCR ---
     ocr_lang: str = "eng"
+    translation_device: str = "cpu"
 
     # --- Navigation ---
     current_stage: int = 0
