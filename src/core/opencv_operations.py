@@ -108,13 +108,6 @@ class OpenCVOperations:
                         relative_y = std_rect[1] - crop_y_offset
                         relative_standard_char_rect = [(relative_x, relative_y, std_rect[2], std_rect[3])]
 
-                if params.min_symbol_rect:
-                    min_rect_list = deserialize_rect_list(params.min_symbol_rect)
-                    if min_rect_list:
-                        min_rect = min_rect_list[0]
-                        relative_x = min_rect[0] - crop_x_offset
-                        relative_y = min_rect[1] - crop_y_offset
-                        relative_min_symbol_rect = [(relative_x, relative_y, min_rect[2], min_rect[3])]
             else:
                 ocr_image = preview_image.copy()
         else:
@@ -122,7 +115,7 @@ class OpenCVOperations:
 
         # For stage 1, return the geometrically corrected image for preview,
         # and the masked image for saving/as the "real" result.
-        return preview_image, ocr_image, crop_rect, relative_work_areas, relative_standard_char_rect, relative_min_symbol_rect
+        return preview_image, ocr_image, crop_rect, relative_work_areas, relative_standard_char_rect, None
 
     def apply_stage2_binarization(self, image, params: ProcessingParameters):
         
@@ -159,98 +152,63 @@ class OpenCVOperations:
             )
 
         # --- 智能移除噪点 ---
-        small_area_thresh = params.small_noise_area_thresh
-        large_area_thresh = params.large_noise_area_thresh
         small_noise_contours = []
         large_noise_contours = []
 
-        image_area = processed_img.shape[0] * processed_img.shape[1]
-        if image_area > 0:
-            # 1. 查找小型噪点
-            if small_area_thresh > 0:
-                # 使用一个小的、固定的内核来准备用于查找小型噪点的图像
-                small_kernel = np.ones((3, 3), np.uint8)
-                image_for_small_analysis = cv2.morphologyEx(processed_img, cv2.MORPH_OPEN, small_kernel)
+        inverted_img = cv2.bitwise_not(processed_img)
 
-                # 通过异或操作，得到一个只包含被移除噪点的“噪点蒙版”，用于捕获粘连噪点
-                noise_mask = cv2.bitwise_xor(processed_img, image_for_small_analysis)
-                contours_from_mask, _ = cv2.findContours(
-                    noise_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-                )
-                # 同时在原始二值化图上查找，以捕获可能被开运算完全消除的、非常孤立的微小噪点
-                contours_from_direct, _ = cv2.findContours(
-                    cv2.bitwise_not(processed_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-                )
-                all_small_candidates = contours_from_direct + contours_from_mask
-                for cnt in all_small_candidates:
-                    area = cv2.contourArea(cnt)
-                    if area < small_area_thresh:
-                        small_noise_contours.append(cnt)
+        # 1. 查找小型噪点
+        if params.enable_smart_noise_removal and params.sample_char_height > 0 and params.noise_size_limit_percent > 0:
+            max_side_length = params.sample_char_height * (params.noise_size_limit_percent / 100.0)
+            area_threshold = max_side_length * max_side_length
+            contours, _ = cv2.findContours(inverted_img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            small_noise_contours = [cnt for cnt in contours if cv2.contourArea(cnt) < area_threshold]
 
-            # 2. 查找大型噪点
-            if large_area_thresh > 0:
-                # 使用一个根据标准字动态计算出的、更大的内核来打断文字粘连
-                # --- 智能定位与精确描边算法 ---
-                # a. 在原始二值化图上找到所有可能的完整轮廓
-                full_contours, _ = cv2.findContours(
-                    cv2.bitwise_not(processed_img), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-                )
+        # 2. 查找大型噪点
+        if (params.preview_large_noise or params.confirm_large_noise_removal) and params.sample_char_height > 0:
+            large_area_thresh = (params.sample_char_height ** 2) * 1.5
+            full_contours, _ = cv2.findContours(inverted_img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            ksize = params.large_noise_morph_ksize | 1
+            large_kernel = np.ones((ksize, ksize), np.uint8)
+            image_for_analysis = cv2.morphologyEx(inverted_img, cv2.MORPH_OPEN, large_kernel)
+            robust_contours, _ = cv2.findContours(image_for_analysis, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            robust_noise_seeds = [cnt for cnt in robust_contours if cv2.contourArea(cnt) > large_area_thresh]
 
-                # b. 在一个经过处理的、打断了粘连的临时图像上，智能地定位噪点
-                ksize = params.large_noise_morph_ksize
-                large_kernel = np.ones((ksize, ksize), np.uint8)
-                inverted_img = cv2.bitwise_not(processed_img)
-                image_for_analysis = cv2.morphologyEx(inverted_img, cv2.MORPH_OPEN, large_kernel)
-                robust_contours, _ = cv2.findContours(
-                    image_for_analysis, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-                )
+            final_large_noise_indices = set()
+            for seed_contour in robust_noise_seeds:
+                M = cv2.moments(seed_contour)
+                if M["m00"] == 0: continue
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                for i, full_contour in enumerate(full_contours):
+                    if cv2.pointPolygonTest(full_contour, (cx, cy), False) >= 0:
+                        final_large_noise_indices.add(i)
+                        break
+            large_noise_contours = [full_contours[i] for i in sorted(list(final_large_noise_indices))]
 
-                # c. 筛选出符合尺寸的、被智能定位的噪点种子
-                robust_noise_seeds = []
-                for cnt in robust_contours:
-                    area = cv2.contourArea(cnt)
-                    if area > large_area_thresh:
-                        robust_noise_seeds.append(cnt)
+        # 3. 生成主输出图像 (用于下一阶段和最终保存)
+        main_result_image = processed_img.copy()
+        if params.enable_smart_noise_removal and small_noise_contours:
+            # 在主输出图像上真正移除噪点 (涂白)
+            cv2.drawContours(main_result_image, small_noise_contours, -1, 255, thickness=cv2.FILLED)
+        if params.confirm_large_noise_removal and large_noise_contours:
+            # 在主输出图像上真正移除大型噪点 (涂白)
+            cv2.drawContours(main_result_image, large_noise_contours, -1, 255, thickness=cv2.FILLED)
 
-                # d. 根据智能定位的噪点种子，去原始图中找到它们对应的完整轮廓
-                final_large_noise_indices = set()
-                for seed_contour in robust_noise_seeds:
-                    # 计算种子轮廓的质心
-                    M = cv2.moments(seed_contour)
-                    if M["m00"] == 0:
-                        continue
-                    cx = int(M["m10"] / M["m00"])
-                    cy = int(M["m01"] / M["m00"])
+        # 4. 生成预览图像 (用于UI显示)
+        # 检查是否有任何需要预览的内容
+        is_small_noise_preview = params.enable_smart_noise_removal and small_noise_contours
+        is_large_noise_preview = params.preview_large_noise and large_noise_contours
 
-                    # 在完整轮廓列表中查找包含该质心的轮廓
-                    for i, full_contour in enumerate(full_contours):
-                        if cv2.pointPolygonTest(full_contour, (cx, cy), False) >= 0:
-                            final_large_noise_indices.add(i)
-                            break  # 找到一个就够了
-
-                # e. 构建最终的大型噪点列表
-                for i in sorted(list(final_large_noise_indices)):
-                    large_noise_contours.append(full_contours[i])
-
-        # 3. 决定主输出图像 (给下一阶段的图像)
-        main_result_image = processed_img
-        if (params.confirm_small_noise_removal and small_noise_contours) or \
-           (params.confirm_large_noise_removal and large_noise_contours):
-            main_result_image = processed_img.copy()
-            if params.confirm_small_noise_removal:
-                cv2.drawContours(main_result_image, small_noise_contours, -1, 255, thickness=cv2.FILLED)
-            if params.confirm_large_noise_removal:
-                cv2.drawContours(main_result_image, large_noise_contours, -1, 255, thickness=cv2.FILLED)
-
-        # 4. 决定预览图像 (在UI上显示的图像)
-        preview_image = main_result_image
-        if (params.preview_small_noise and small_noise_contours) or \
-           (params.preview_large_noise and large_noise_contours):
-            # 在原始二值化图上高亮，让用户看清将被移除的内容
+        if not is_small_noise_preview and not is_large_noise_preview:
+            # 如果没有任何需要预览的，预览图就等于最终结果图
+            preview_image = main_result_image
+        else:
+            # 如果需要预览，则在原始二值化图上绘制高亮框
             preview_image = cv2.cvtColor(processed_img, cv2.COLOR_GRAY2BGR)
-            if params.preview_small_noise:
+            if is_small_noise_preview:
                 cv2.drawContours(preview_image, small_noise_contours, -1, (0, 255, 0), 1) # Green
-            if params.preview_large_noise:
+            if is_large_noise_preview:
                 cv2.drawContours(preview_image, large_noise_contours, -1, (0, 0, 255), 1) # Red
 
         return preview_image, main_result_image, None, None, None, None

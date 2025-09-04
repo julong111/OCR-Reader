@@ -154,7 +154,6 @@ class MainUI(QMainWindow):
         stage1_page.signal_geometriccorrectionpage_area_selection_requested.connect(self.interaction_handler.start_area_selection)
         stage1_page.signal_geometriccorrectionpage_area_edit_requested.connect(self.interaction_handler.start_area_editing)
         stage1_page.signal_geometriccorrectionpage_standard_char_requested.connect(self.interaction_handler.start_standard_char_selection)
-        stage1_page.signal_geometriccorrectionpage_min_symbol_requested.connect(self.interaction_handler.start_min_symbol_selection)
 
         # 当交互彻底结束时，清除工作区列表的选中状态
         ended_signal = self.interaction_handler.signal_imageinteractionhandler_interaction_ended
@@ -248,7 +247,6 @@ class MainUI(QMainWindow):
 
         # 检查标准字或最小符号矩形是否在要删除的区域内
         std_char_rect_str = params.standard_char_rect
-        min_sym_rect_str = params.min_symbol_rect
 
         std_char_is_inside = False
         if std_char_rect_str:
@@ -256,14 +254,8 @@ class MainUI(QMainWindow):
             if area_to_delete_qrect.contains(std_char_qrect):
                 std_char_is_inside = True
 
-        min_sym_is_inside = False
-        if min_sym_rect_str:
-            min_sym_qrect = QRect(*deserialize_rect_list(min_sym_rect_str)[0])
-            if area_to_delete_qrect.contains(min_sym_qrect):
-                min_sym_is_inside = True
-
         # 如果没有包含任何内容，则直接删除
-        if not std_char_is_inside and not min_sym_is_inside:
+        if not std_char_is_inside:
             del work_areas[index]
             self.app_context.update_parameters({'work_areas': serialize_rect_list(work_areas)})
             return
@@ -272,8 +264,8 @@ class MainUI(QMainWindow):
         reply = QMessageBox.question(
             self,
             "确认删除",
-            "此工作区内包含“标准字”或“最小符号”的选区。\n"
-            "删除此工作区将同时移除这些选区及其关联参数。\n\n"
+            "此工作区内包含“标准字”选区。\n"
+            "删除此工作区将同时移除该选区及其关联参数。\n\n"
             "您确定要继续吗？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
@@ -283,22 +275,12 @@ class MainUI(QMainWindow):
             params_to_update = {}
             default_params = ProcessingParameters()
 
-            # 1. 移除工作区
             del work_areas[index]
             params_to_update['work_areas'] = serialize_rect_list(work_areas)
 
-            # 2. 如果标准字在内部，则重置它及其派生参数
-            if std_char_is_inside:
-                params_to_update['standard_char_rect'] = ''
-                params_to_update['sample_char_height'] = default_params.sample_char_height
-                params_to_update['thresh_blocksize'] = default_params.thresh_blocksize
-                params_to_update['large_noise_thresh'] = default_params.large_noise_thresh
-
-            # 3. 如果最小符号在内部，则重置它及其派生参数
-            if min_sym_is_inside:
-                params_to_update['min_symbol_rect'] = ''
-                params_to_update['min_symbol_height'] = default_params.min_symbol_height
-                params_to_update['small_noise_thresh'] = default_params.small_noise_thresh
+            # 如果标准字在内部，则重置它
+            params_to_update['standard_char_rect'] = ''
+            params_to_update['sample_char_height'] = default_params.sample_char_height
 
             self.app_context.update_parameters(params_to_update)
 
@@ -460,14 +442,6 @@ class MainUI(QMainWindow):
             rects = deserialize_rect_list(std_char_source)
             if rects:
                 image_label.standard_char_rect = QRect(*rects[0])
-
-        # Min symbol rect
-        min_sym_source = params.relative_min_symbol_rect if stage_index > 0 else params.min_symbol_rect
-        image_label.min_symbol_rect = None
-        if min_sym_source:
-            rects = deserialize_rect_list(min_sym_source)
-            if rects:
-                image_label.min_symbol_rect = QRect(*rects[0])
 
         image_label.update()
 

@@ -79,14 +79,14 @@ if isCUDAAvailable():
 #     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 # 强制优先加载核心计算库，以解决Windows上的底层DLL冲突。
-import torch
-import cv2
-
-# --- PyTorch & CUDA 配置 ---
-TORCH_VERSION = torch.__version__
-TORCH_LIB_PATH = torch.__file__
-logger.info("Torch VERSION: %s", TORCH_VERSION)
-logger.info("Torch PATH: %s", TORCH_LIB_PATH)
+# import torch
+# import cv2
+#
+# # --- PyTorch & CUDA 配置 ---
+# TORCH_VERSION = torch.__version__
+# TORCH_LIB_PATH = torch.__file__
+# logger.info("Torch VERSION: %s", TORCH_VERSION)
+# logger.info("Torch PATH: %s", TORCH_LIB_PATH)
 
 # 优先导入main_ui，它会间接加载PyTorch等库，以解决Windows上可能的底层DLL冲突。
 from main_ui import MainUI

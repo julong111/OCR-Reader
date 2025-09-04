@@ -80,24 +80,26 @@ class BinarizationPage(QWidget):
         main_layout.addWidget(thresh_group)
 
         # --- 智能噪点移除 ---
-        noise_group = QGroupBox("智能小型噪点移除")
-        noise_layout = QVBoxLayout(noise_group)
-
-        self.preview_noise_checkbox = QCheckBox("预览将被移除的噪点")
-        self.preview_noise_checkbox.setToolTip("开启后，小于“最小符号”的噪点将在预览图上用绿色框出。")
-        self.preview_noise_checkbox.toggled.connect(
-            lambda checked: self.parameters_changed.emit({'preview_small_noise': checked})
+        self.smart_noise_group = QGroupBox("智能噪点移除")
+        self.smart_noise_group.setCheckable(True)
+        self.smart_noise_group.toggled.connect(
+            lambda checked: self.parameters_changed.emit({'enable_smart_noise_removal': checked})
         )
-        noise_layout.addWidget(self.preview_noise_checkbox)
+        smart_noise_layout = QVBoxLayout(self.smart_noise_group)
 
-        self.confirm_removal_checkbox = QCheckBox("确认移除小型噪点")
-        self.confirm_removal_checkbox.setToolTip("开启后，将在本阶段的输出中移除预览到的小型噪点。")
-        self.confirm_removal_checkbox.toggled.connect(
-            lambda checked: self.parameters_changed.emit({'confirm_small_noise_removal': checked})
-        )
-        noise_layout.addWidget(self.confirm_removal_checkbox)
+        self.noise_limit_label = QLabel("噪点尺寸上限 (%):")
+        smart_noise_layout.addWidget(self.noise_limit_label)
 
-        main_layout.addWidget(noise_group)
+        self.noise_limit_control = SliderSpinBox(is_float=False)
+        self.noise_limit_control.setRange(0, 100)
+        tooltip_text = ("基于“标准字高度”移除噪点。\n"
+                        "计算方式: 阈值面积 = (标准字高度 * 百分比/100)²\n"
+                        "需要先在“几何校正”页面框选标准字。")
+        self.noise_limit_control.setToolTip(tooltip_text)
+        self.noise_limit_control.value_changed_finished.connect(
+            lambda val: self.parameters_changed.emit({'noise_size_limit_percent': val}))
+        smart_noise_layout.addWidget(self.noise_limit_control)
+        main_layout.addWidget(self.smart_noise_group)
 
         # --- 智能大型噪点移除 ---
         large_noise_group = QGroupBox("智能大型噪点移除")
@@ -133,9 +135,8 @@ class BinarizationPage(QWidget):
         blur_ksize = params.blur_ksize
         self.blur_ksize_control.setValue(blur_ksize)
 
-        self.preview_noise_checkbox.setChecked(params.preview_small_noise)
-        self.confirm_removal_checkbox.setChecked(params.confirm_small_noise_removal)
-
+        self.smart_noise_group.setChecked(params.enable_smart_noise_removal)
+        self.noise_limit_control.setValue(params.noise_size_limit_percent)
         self.preview_large_noise_checkbox.setChecked(params.preview_large_noise)
         self.confirm_large_noise_removal_checkbox.setChecked(params.confirm_large_noise_removal)
 

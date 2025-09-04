@@ -22,8 +22,6 @@ class GeometricCorrectionPage(QWidget):
     signal_geometriccorrectionpage_perspective_reset_requested = pyqtSignal()
 
     signal_geometriccorrectionpage_standard_char_requested = pyqtSignal() # 标准字符信号
-    signal_geometriccorrectionpage_min_symbol_requested = pyqtSignal() # 最小字符信号
-
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -109,14 +107,6 @@ class GeometricCorrectionPage(QWidget):
         smart_params_layout.addWidget(self.select_char_btn)
         self.standard_char_label = QLabel("标准字高: N/A")
         smart_params_layout.addWidget(self.standard_char_label)
-
-        self.select_symbol_btn = QPushButton("框选最小符号")
-        self.select_symbol_btn.setToolTip("框选一个最小的有效符号（如句号），程序将据此自动设置相关参数。")
-        self.select_symbol_btn.clicked.connect(self.signal_geometriccorrectionpage_min_symbol_requested)
-        smart_params_layout.addWidget(self.select_symbol_btn)
-        self.min_symbol_label = QLabel("最小符号高: N/A")
-        smart_params_layout.addWidget(self.min_symbol_label)
-
         main_layout.addWidget(smart_params_group)
 
         # 添加一个弹簧，吸收所有多余的垂直空间，使所有控件都紧凑地排列在顶部
@@ -156,7 +146,6 @@ class GeometricCorrectionPage(QWidget):
 
         # 更新智能参数显示
         self.standard_char_label.setText(f"标准字高: {params.sample_char_height} px" if params.sample_char_height > 0 else "标准字高: N/A")
-        self.min_symbol_label.setText(f"最小符号高: {params.min_symbol_height} px" if params.min_symbol_height > 0 else "最小符号高: N/A")
 
         # 'work_areas' 是我们将来在参数文件中存储区域信息的键
         work_areas_str = params.work_areas

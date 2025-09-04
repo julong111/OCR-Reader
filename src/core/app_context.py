@@ -134,7 +134,7 @@ class AppContext(QObject):
                 "identifier": self.current_image_identifier
             }
 
-        preview, main_result, crop_rect, relative_areas, rel_std_char, rel_min_sym = self.image_pipeline.process(
+        preview, main_result, crop_rect, relative_areas, rel_std_char, _ = self.image_pipeline.process(
             input_image, self.current_stage_index, self.params, debug_info=debug_info
         )
         self.preview_image = preview
@@ -155,11 +155,6 @@ class AppContext(QObject):
             new_rel_std_char_str = serialize_rect_list(rel_std_char) if rel_std_char else ""
             if self.params.relative_standard_char_rect != new_rel_std_char_str:
                 self.params.relative_standard_char_rect = new_rel_std_char_str
-                params_changed = True
-
-            new_rel_min_sym_str = serialize_rect_list(rel_min_sym) if rel_min_sym else ""
-            if self.params.relative_min_symbol_rect != new_rel_min_sym_str:
-                self.params.relative_min_symbol_rect = new_rel_min_sym_str
                 params_changed = True
 
         # After processing, immediately save the results for this stage.

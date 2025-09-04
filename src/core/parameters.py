@@ -18,17 +18,14 @@ class ProcessingParameters:
     work_areas: str = ""          # Serialized list of rects
     work_area_crop_rect: str = "" # Serialized rect for the crop bounding box
     relative_work_areas: str = "" # Serialized list of rects relative to the cropped image
-    sample_char_height: int = 0
-    min_symbol_height: int = 0
+    sample_char_height: int = 0   # Height of the standard character
     standard_char_rect: str = ""  # Serialized rect for the standard char sample
     relative_standard_char_rect: str = "" # Serialized rect for the standard char sample relative to the cropped image
-    min_symbol_rect: str = ""     # Serialized rect for the min symbol sample
-    relative_min_symbol_rect: str = "" # Serialized rect for the min symbol sample relative to the cropped image
 
     # --- Stage 2: Binarization ---
     blur_ksize: int = 1
-    preview_small_noise: bool = False
-    confirm_small_noise_removal: bool = False
+    enable_smart_noise_removal: bool = False
+    noise_size_limit_percent: int = 10    # Percentage of standard char height, used to calculate area threshold
     preview_large_noise: bool = False
     confirm_large_noise_removal: bool = False
     large_noise_morph_ksize: int = 3      # Kernel size for large noise opening
@@ -122,11 +119,8 @@ class ProcessingParameters:
             'work_area_crop_rect',
             'relative_work_areas',
             'sample_char_height',
-            'min_symbol_height',
             'standard_char_rect',
-            'relative_standard_char_rect',
-            'min_symbol_rect',
-            'relative_min_symbol_rect'
+            'relative_standard_char_rect'
         }
 
         nav_params = {k: v for k, v in all_fields.items() if k in nav_keys}
